@@ -254,14 +254,14 @@ public enum NudgePlanner {
         let body: String
         switch variant {
         case 0:
-            title = "Medúza se chystá ke spánku"
-            body = "Na noc má připraveno \(available) z \(ration) minut. Zítra stačí krátká procházka a bude zase zářit."
+            title = "Kinet"
+            body = "Stačí krátká procházka a porce medúzy bude celá."
         case 1:
-            title = "Klidný večer v akváriu"
-            body = "Dnes to bylo \(available) z \(ration) minut. Zítra spolu doplaveme víc."
+            title = "Kinet"
+            body = "Pár kroků navíc by medúze udělalo radost."
         default:
-            title = "Kinet tě zdraví"
-            body = "Medúza je v pohodě, jen by zítra ráda pár minut navíc. Třeba při procházce?"
+            title = "Kinet"
+            body = "Večerní vzduch dělá dobře i medúzám. Co malá procházka?"
         }
         return Nudge(day: day, available: available, ration: ration, title: title, body: body)
     }

@@ -62,7 +62,7 @@ public struct PetView: View {
             if !Task.isCancelled { withAnimation(.smooth(duration: 0.8)) { experienceID = nil } }
         }
         .onChange(of: model.feedToken) { _, _ in
-            sim.dropFood(count: min(12, max(1, (model.lastFeedAmount + 9) / 10)))
+            sim.dropFood(count: min(6, max(1, (model.lastFeedAmount / 10 + 1) / 2)))
             sim.thrustBoost = 1
             engage(15)
         }
@@ -261,13 +261,15 @@ struct MoodBar: View {
     @Environment(\.appTheme) private var theme
     @Environment(PetModel.self) private var model
     @State private var expanded = false
+    @State private var contentVisible = false
+    @State private var transition: Task<Void, Never>?
 
     var body: some View {
         let vitals = model.vitals
         let mood = model.effectiveMood
         let isSleeping = model.isSleepingTime
         let progress = vitals.xpForNextLevel.map { Double(vitals.xpIntoLevel) / Double(max(1, $0)) } ?? 1
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
             HStack(spacing: 6) {
                 Circle().fill(isSleeping ? Palette.mist : tint(mood)).frame(width: 8, height: 8)
                 Text(isSleeping ? "Spící" : mood.title)
@@ -291,39 +293,66 @@ struct MoodBar: View {
                         Capsule().fill(theme.accent).frame(width: max(3, proxy.size.width * min(1, progress)))
                     }
                 }
-            if expanded {
-                HStack(spacing: 4) {
-                    ForEach(Mood.allCases, id: \.self) { entry in
-                        let isCurrent = !isSleeping && entry == mood
-                        VStack(spacing: 3) {
-                            Circle().fill(tint(entry)).frame(width: 9, height: 9)
-                            Text(entry.title)
-                                .font(.system(.caption2, design: .rounded, weight: isCurrent ? .bold : .medium))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .opacity(isCurrent ? 1 : 0.55)
-                        .frame(maxWidth: .infinity)
+                .padding(.top, 9)
+                .frame(maxWidth: .infinity)
+            HStack(spacing: 0) {
+                ForEach(Array(Mood.allCases.enumerated()), id: \.element) { index, entry in
+                    let isCurrent = !isSleeping && entry == mood
+                    if index > 0 { Spacer(minLength: 4) }
+                    VStack(spacing: 3) {
+                        Circle().fill(tint(entry)).frame(width: 9, height: 9)
+                        Text(entry.title)
+                            .font(.system(.caption2, design: .rounded, weight: isCurrent ? .bold : .medium))
+                            .lineLimit(1)
+                            .fixedSize()
                     }
+                    .opacity(isCurrent ? 1 : 0.55)
                 }
-                .padding(.top, 6)
-                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
             }
+            .padding(.top, 12)
+            .opacity(contentVisible ? 1 : 0)
+            .frame(maxWidth: .infinity)
+            .frame(height: expanded ? 37 : 0, alignment: .top)
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(!expanded)
+            Color.clear.frame(height: expanded ? 10 : 12)
         }
         .contentShape(.rect)
-        .onTapGesture { withAnimation(.spring(duration: 0.4, bounce: 0.2)) { expanded.toggle() } }
+        .onTapGesture { toggle() }
         .task(id: expanded) {
             guard expanded else { return }
             try? await Task.sleep(for: .seconds(6))
-            if !Task.isCancelled { withAnimation(.spring(duration: 0.4, bounce: 0.2)) { expanded = false } }
+            if !Task.isCancelled { setExpanded(false) }
         }
         .foregroundStyle(Palette.ink)
         .padding(.horizontal, 16)
-        .padding(.vertical, 9)
+        .padding(.top, 9)
         .frame(maxWidth: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .animation(.smooth, value: vitals)
         .accessibilityElement(children: .combine)
+    }
+
+    private func toggle() {
+        setExpanded(!expanded)
+    }
+
+    private func setExpanded(_ open: Bool) {
+        transition?.cancel()
+        transition = Task {
+            if open {
+                withAnimation(.spring(duration: 0.4, bounce: 0.2)) { expanded = true }
+                try? await Task.sleep(for: .seconds(0.22))
+                if Task.isCancelled { return }
+                withAnimation(.easeOut(duration: 0.25)) { contentVisible = true }
+            } else {
+                withAnimation(.easeIn(duration: 0.18)) { contentVisible = false }
+                try? await Task.sleep(for: .seconds(0.16))
+                if Task.isCancelled { return }
+                withAnimation(.spring(duration: 0.4, bounce: 0.2)) { expanded = false }
+            }
+        }
     }
 
     private func tint(_ mood: Mood) -> Color {
